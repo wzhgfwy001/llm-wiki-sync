@@ -1,13 +1,14 @@
 {
   "name": "llm-wiki-sync",
-  "version": "1.4.0",
-  "description": "OpenClaw×Obsidian LLM Wiki协同：第二大脑+备份工作区",
-  "keywords": ["llm-wiki", "obsidian", "knowledge-management", "openclaw", "sync", "lint", "compile", "brain-vault"],
-  "homepage": "https://github.com/wzhgfwy001/yuanshen",
+  "version": "2.0.0",
+  "description": "OpenClaw×Obsidian LLM Wiki协同：第二大脑+备份工作区 (v2.0.0)",
+  "keywords": ["llm-wiki", "obsidian", "knowledge-management", "openclaw", "sync", "lint", "compile", "brain-vault", "health-check", "backup", "dedup", "stats"],
+  "homepage": "https://github.com/wzhgfwy001/llm-wiki-sync",
   "author": "元神",
   "created": "2026-05-11",
-  "trigger": ["llm-wiki-sync", "同步工作区", "lint检查", "compile+lint", "LLM Wiki维护", "知识库自检", "obsidian维护"],
-  "operations": ["compile", "lint", "sync", "index", "ingest", "query", "reindex", "all"],
+  "updated": "2026-05-11",
+  "trigger": ["llm-wiki-sync", "同步工作区", "lint检查", "compile+lint", "LLM Wiki维护", "知识库自检", "obsidian维护", "health检查", "dedup去重", "stats统计", "backup备份", "export报告", "watch监控"],
+  "operations": ["compile", "lint", "sync", "index", "ingest", "query", "reindex", "health", "dedup", "stats", "backup", "export", "watch", "all"],
   "features": [
     "compile - JSON/Markdown编译检查",
     "lint - 7项自检（断链/孤立/短笔记等）",
@@ -15,11 +16,30 @@
     "index - Obsidian index.md统计",
     "ingest - 导入内容到wiki",
     "query - 搜索wiki回答",
-    "reindex - 重建index.md"
+    "reindex - 重建index.md",
+    "health - 健康评分(0-100，含A+/A/B/C/D评级)",
+    "dedup - 内容查重扫描(strict/loose模式)",
+    "stats - 详细统计面板(文件/分类/大小/标签/链接)",
+    "backup - 全量备份(wiki+brain+核心MD+index.md+manifest)",
+    "export - 报告导出(JSON/HTML/Markdown)",
+    "watch - 文件变更监视模式",
+    "interactive - 交互式命令行模式",
+    "Git hooks自动提交",
+    "CI/CD自动化 (GitHub Actions)"
   ],
   "based_on": [
     "karpathy-llm-wiki",
     "LLM-Wiki-Template (Whitefox75)",
     "LLM-Wiki-Template (IvanKRZ)"
+  ],
+  "v2_new_features": [
+    "health - 8项健康评分算法",
+    "dedup - 内容去重扫描",
+    "stats - 详细统计面板",
+    "backup - 全量备份带manifest",
+    "export - 三格式报告导出",
+    "watch - 文件变更监视",
+    "interactive - 交互模式",
+    "Git hooks + GitHub CI"
   ]
 }

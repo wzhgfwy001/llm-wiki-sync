@@ -9,6 +9,17 @@
 | **🧠 第二大脑** | Obsidian作为外部知识库，存储详细笔记 |
 | **💾 备份工作区** | Obsidian Vault是OpenClaw工作区的外部备份 |
 
+## v2.0.0 新增功能
+
+- **health** — 健康评分 (0-100，含A+/A/B/C/D评级)
+- **dedup** — 内容查重扫描 (strict/loose 模式)
+- **stats** — 详细统计面板 (文件/分类/大小/标签/链接)
+- **backup** — 全量备份 (wiki+brain+核心MD+manifest)
+- **export** — 报告导出 (JSON/HTML/Markdown)
+- **watch** — 文件变更监视模式
+- **interactive** — 交互式命令行
+- **Git Hooks + GitHub CI** 自动化
+
 ## 操作列表
 
 | 操作 | 说明 |
@@ -20,6 +31,12 @@
 | ingest | 导入内容到wiki |
 | query | 搜索wiki并回答 |
 | reindex | 重建index.md |
+| **health** | **健康评分 0-100** |
+| **dedup** | **内容查重扫描** |
+| **stats** | **详细统计面板** |
+| **backup** | **全量备份** |
+| **export** | **报告导出** |
+| **watch** | **文件变更监视** |
 | all | 全部检查 |
 
 ## 调用方式
@@ -27,7 +44,13 @@
 ```
 llm-wiki-sync compile
 llm-wiki-sync lint
-llm-wiki-sync sync
+llm-wiki-sync health
+llm-wiki-sync dedup --dedup-mode=strict
+llm-wiki-sync stats
+llm-wiki-sync backup --backup-dir D:/backups
+llm-wiki-sync export --format html --out ./reports
+llm-wiki-sync watch --interval 30
+llm-wiki-sync interactive
 llm-wiki-sync all
 llm-wiki-sync ingest <内容>
 llm-wiki-sync query <关键词>
@@ -47,14 +70,17 @@ node "skill:llm-wiki-sync/llm-wiki-sync.js" [operation]
 ```
 OpenClaw工作区/
 ├── SOUL.md, AGENTS.md, MEMORY.md, USER.md
-├── HEARTBEAT.md, IDENTITY.md, TOOLS.md
+├── HEARTBEAT.md, IDENTITY.md, TOOLS.md, BOOTSTRAP.md
 └── brain/
     ├── decisions/        ← 决策记录
     ├── lessons/          ← 教训记录
     ├── inbox.md          ← 收件箱
     ├── memory-task.md    ← 记忆任务
     ├── plan.md           ← 计划
-    └── learned.md        ← 学到的经验
+    ├── learned.md        ← 学到的经验
+    └── knowledge_graph/  ← 知识图谱（可选）
+        ├── nodes.json
+        └── relations.json
 ```
 
 ### Agent与Obsidian双向连接设置
@@ -67,14 +93,6 @@ OpenClaw工作区/
 - ROOT: C:/Users/你的用户/.openclaw/workspace
 ```
 
-### 忽略的外部引用
-
-```javascript
-const IGNORED_EXTERNAL_LINKS = [
-  'USER.md', 'SOUL.md', 'AGENTS.md', 'MEMORY.md'
-];
-```
-
 ### 必须存在的目录结构
 
 #### Obsidian Vault（最小可用）
@@ -82,6 +100,10 @@ const IGNORED_EXTERNAL_LINKS = [
 你的Obsidian Vault/
 ├── index.md     ← 全局目录（必须）
 └── wiki/        ← 只需创建此目录，内容可为空
+    ├── concepts/
+    ├── entities/
+    ├── sources/
+    └── synthesis/
 ```
 
 #### 如使用sync功能还需要OpenClaw brain/
@@ -89,31 +111,37 @@ const IGNORED_EXTERNAL_LINKS = [
 OpenClaw工作区/
 └── brain/
     ├── decisions/  ← 决策记录
-    └── lessons/    ← 教训记录
+    └── lessons/   ← 教训记录
 ```
 
-### 配置变量（打开llm-wiki-sync.js修改）
+## OpenClaw工作区结构（v2.0.0新增）
+
+llm-wiki-sync v2.0.0 会自动检测以下 OpenClaw 关键目录和文件：
+
+| 类别 | 路径 | 说明 |
+|------|------|------|
+| 核心文件 | SOUL.md, AGENTS.md, MEMORY.md, USER.md, HEARTBEAT.md, IDENTITY.md, TOOLS.md, BOOTSTRAP.md | 健康检查项 |
+| brain目录 | brain/ | 第二大脑根目录 |
+| 决策库 | brain/decisions/ | OpenClaw决策记录 |
+| 教训库 | brain/lessons/ | OpenClaw教训记录 |
+| 收件箱 | brain/inbox.md | 待处理任务列表 |
+| 知识图谱 | knowledge_graph/ | 知识图谱数据（nodes.json + relations.json） |
+
+**health/stats/backup 操作会自动检测上述所有路径**
+
+## 配置变量（打开llm-wiki-sync.js修改）
 
 ```javascript
 const CONFIG = {
   // ★ 必须修改
-  OBSIDIAN_ROOT: 'D:/obsidian知识库/你的知识库',
-  WIKI_DIR: 'D:/obsidian知识库/你的知识库/wiki',
-  
-  // 如使用sync功能也需要修改
-  ROOT: 'C:/Users/你的用户/.openclaw/workspace'
+  ROOT:           'C:/Users/你的用户/.openclaw/workspace',
+  OBSIDIAN_ROOT:  'D:/obsidian知识库/你的知识库',
+  WIKI_DIR:       'D:/obsidian知识库/你的知识库/wiki',
+  // 可选
+  BACKUP_DIR:     'D:/obsidian知识库/备份',
+  EXPORT_DIR:     'C:/Users/你的用户/.openclaw/workspace/llm-wiki-reports'
 };
 ```
-
-### 路径格式注意
-- Windows用 `/` 或 `\\`
-- macOS/Linux用 `/`
-- 避免空格和特殊字符
-
-### 系统要求
-- Node.js v16+
-- Obsidian v1.0+（可选）
-- Git（推荐，用于版本控制）
 
 ## 版本历史
 
@@ -124,6 +152,7 @@ const CONFIG = {
 | v1.2.0 | 2026-05-11 | 完善README，添加完整配置说明 |
 | v1.3.0 | 2026-05-11 | 添加OpenClaw结构要求、双向连接设置 |
 | v1.4.0 | 2026-05-11 | 强调两大定位：第二大脑+备份工作区 |
+| **v2.0.0** | **2026-05-11** | **新增health/dedup/stats/backup/export/watch/interactive/CI** |
 
 ---
 

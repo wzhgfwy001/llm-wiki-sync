@@ -1,0 +1,26 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+*.log
+
+# Backup & state files (generated at runtime)
+.llm-wiki-sync.state.json
+llm-wiki-reports/
+artifacts/
+
+# Obsidian (user-specific, never commit actual wiki content)
+# Uncomment if your wiki is in the same repo:
+# wiki/
+# index.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Temp
+*.tmp
+*.bak
