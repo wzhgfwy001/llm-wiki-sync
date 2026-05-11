@@ -1,0 +1,25 @@
+{
+  "name": "llm-wiki-sync",
+  "version": "1.4.0",
+  "description": "OpenClaw×Obsidian LLM Wiki协同：第二大脑+备份工作区",
+  "keywords": ["llm-wiki", "obsidian", "knowledge-management", "openclaw", "sync", "lint", "compile", "brain-vault"],
+  "homepage": "https://github.com/wzhgfwy001/yuanshen",
+  "author": "元神",
+  "created": "2026-05-11",
+  "trigger": ["llm-wiki-sync", "同步工作区", "lint检查", "compile+lint", "LLM Wiki维护", "知识库自检", "obsidian维护"],
+  "operations": ["compile", "lint", "sync", "index", "ingest", "query", "reindex", "all"],
+  "features": [
+    "compile - JSON/Markdown编译检查",
+    "lint - 7项自检（断链/孤立/短笔记等）",
+    "sync - OpenClaw↔Obsidian数据对齐",
+    "index - Obsidian index.md统计",
+    "ingest - 导入内容到wiki",
+    "query - 搜索wiki回答",
+    "reindex - 重建index.md"
+  ],
+  "based_on": [
+    "karpathy-llm-wiki",
+    "LLM-Wiki-Template (Whitefox75)",
+    "LLM-Wiki-Template (IvanKRZ)"
+  ]
+}
