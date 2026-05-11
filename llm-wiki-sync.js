@@ -1067,17 +1067,20 @@ function interactive(opts) {
 // ARGV PARSER
 // ─────────────────────────────────────────
 function parseArgv(argv) {
-  const opts = { _: argv };
+  const opts = { _: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '-f' || a === '--format')    { opts.format    = argv[++i]; continue; }
-    if (a === '-i' || a === '--interactive'){ opts.interactive = true;    continue; }
-    if (a === '-w' || a === '--watch')      { opts.watch       = true;    continue; }
-    if (a === '-t' || a === '--interval')  { opts.interval    = parseInt(argv[++i]); continue; }
-    if (a === '-o' || a === '--out')        { opts.out         = argv[++i]; continue; }
-    if (a === '-v' || a === '--verbose')    { opts.verbose     = true;    continue; }
-    if (a === '--backup-dir')               { opts.backupDir   = argv[++i]; continue; }
-    if (a === '--dedup-mode')               { opts.dedupMode   = argv[++i]; continue; }
+    if (a.startsWith('-')) {
+      if (a === '-f' || a === '--format')    { opts.format      = argv[++i]; continue; }
+      if (a === '-i' || a === '--interactive'){ opts.interactive = true;    continue; }
+      if (a === '-w' || a === '--watch')      { opts.watch       = true;    continue; }
+      if (a === '-t' || a === '--interval')  { opts.interval    = parseInt(argv[++i]); continue; }
+      if (a === '-o' || a === '--out')        { opts.out         = argv[++i]; continue; }
+      if (a === '-v' || a === '--verbose')    { opts.verbose     = true;    continue; }
+      if (a === '--backup-dir')               { opts.backupDir   = argv[++i]; continue; }
+      if (a === '--dedup-mode')              { opts.dedupMode   = argv[++i]; continue; }
+    }
+    opts._.push(a);
   }
   return opts;
 }
@@ -1087,7 +1090,7 @@ function parseArgv(argv) {
 // ─────────────────────────────────────────
 function main(argv) {
   const opts = parseArgv(argv.slice(2));
-  const operation = opts._[2] || 'all';
+  const operation = opts._[0] || 'all';
 
   console.log('\n' + C.m + '╔' + '═'.repeat(56) + '╗');
   console.log('║  llm-wiki-sync ' + C.w + 'v2.0.0' + C.m + '  OpenClaw × Obsidian LLM Wiki  ║');
