@@ -38,6 +38,7 @@ const CONFIG = {
   OBSIDIAN_ROOT:     'D:/obsidian知识库/我的知识库',
   WIKI_DIR:          'D:/obsidian知识库/我的知识库/wiki',
   BACKUP_DIR:        'D:/obsidian知识库/备份',
+  WORKSPACE_DIR:     'D:/obsidian知识库/openclaw-workspace',
   EXPORT_DIR:        'C:/Users/DELL/.openclaw/workspace/llm-wiki-reports',
   // OpenClaw key files & dirs (for health/stats)
   OC_KEY_FILES: ['SOUL.md','AGENTS.md','MEMORY.md','IDENTITY.md','USER.md',
@@ -282,7 +283,9 @@ function lint(opts) {
   log('--- [6] 索引漂移检查 ---', 'info');
   const driftFiles = wikiFiles.filter(f => {
     const rel = relative(f, CONFIG.WIKI_DIR);
-    return !idxContent.includes(rel) && !idxContent.includes(rel.replace(/\//g,' '));
+    const stem = rel.replace(/\.md$/,'');
+    // Check for both [[rel]] and rel (with spaces instead of /)
+    return !idxContent.includes(stem) && !idxContent.includes(rel.replace(/\//g,' '));
   });
   if (driftFiles.length > 0) {
     log('发现 ' + driftFiles.length + ' 个未列入index.md的文件', 'warn');
@@ -647,6 +650,132 @@ function dedup(opts) {
 }
 
 // ─────────────────────────────────────────
+// OPERATION: fix-lint
+// ─────────────────────────────────────────
+function fixLint(opts) {
+  hr('fix-lint — 修复 lint 问题');
+  const wikiFiles = exists(CONFIG.WIKI_DIR) ? scanDir(CONFIG.WIKI_DIR) : [];
+  const idxContent = readFile(joinDir(CONFIG.OBSIDIAN_ROOT, 'index.md')) || '';
+
+  const fixes = [];
+
+  const toAdd = []; // index drift files to add
+
+  // [2] Broken links: remove broken [[links]] from files
+  log('--- [2] 断链修复 ---', 'info');
+  let brokenLinksFixed = 0;
+  for (const f of wikiFiles) {
+    let content = readFile(f) || '';
+    const links = parseLinks(content);
+    let modified = false;
+    for (const link of links) {
+      if (link.includes('://') || CONFIG.IGNORED_EXTERNAL_LINKS.includes(link)) continue;
+      const targetPath = joinDir(path.dirname(f), link + '.md');
+      const altPath = joinDir(CONFIG.WIKI_DIR, link + '.md');
+      if (!exists(targetPath) && !exists(altPath)) {
+        // Replace [[link]] with plain text (remove the link)
+        content = content.replace(new RegExp('\\[\\[' + link.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\]\\]', 'g'), link);
+        modified = true;
+      }
+    }
+    if (modified) {
+      writeFile(f, content);
+      brokenLinksFixed++;
+      fixes.push('断链修复: ' + relative(f, CONFIG.WIKI_DIR));
+    }
+  }
+  log('修复了 ' + brokenLinksFixed + ' 个文件的断链', brokenLinksFixed > 0 ? 'ok' : 'info');
+
+  // [6] Index drift: add missing files to index.md
+  log('--- [6] 索引漂移修复 ---', 'info');
+  const driftFiles = wikiFiles.filter(f => {
+    const rel = relative(f, CONFIG.WIKI_DIR);
+    return !idxContent.includes(rel) && !idxContent.includes(rel.replace(/\//g,' '));
+  });
+  if (driftFiles.length > 0) {
+    log('将添加 ' + driftFiles.length + ' 个文件到 index.md', 'info');
+    const appendLines = driftFiles.map(f => {
+      const rel = relative(f, CONFIG.WIKI_DIR);
+      const title = (readFile(f)||'').split('\n').find(l=>l.startsWith('#')) || rel;
+      return '- [[' + rel.replace(/\.md$/,'') + ']] ' + title.substring(0,60);
+    });
+    const idxPath = joinDir(CONFIG.OBSIDIAN_ROOT, 'index.md');
+    let idxContent = readFile(idxPath) || '';
+    // Remove last newline + closing lines if any
+    idxContent = idxContent.replace(/\n+$/, '') + '\n' + appendLines.join('\n') + '\n';
+    writeFile(idxPath, idxContent);
+    for (const f of driftFiles) fixes.push('索引添加: ' + relative(f, CONFIG.WIKI_DIR));
+    log('已添加 ' + driftFiles.length + ' 个文件到 index.md', 'ok');
+  } else {
+    log('无需修复索引漂移', 'ok');
+  }
+
+  // Report
+  console.log('\n' + C.w + '修复完成: ' + fixes.length + ' 项' + C.RESET);
+  for (const f of fixes) log('  ' + f, 'info');
+  console.log('\n建议: 运行 node llm-wiki-sync.js lint 验证修复结果');
+  return true;
+}
+
+
+// ─────────────────────────────────────────
+// OPERATION: fix-dedup
+// ─────────────────────────────────────────
+function fixDedup(opts) {
+  hr('fix-dedup — 查重修复 (删除重复文件)');
+  const mode = opts.dedupMode || 'loose';
+  const threshold = mode === 'strict' ? 0.5 : 0.7;
+
+
+  if (!exists(CONFIG.WIKI_DIR)) { log('WIKI_DIR不存在', 'fail'); return false; }
+
+  const files = scanDir(CONFIG.WIKI_DIR);
+  const hashes = new Map();
+  const dupGroups = [];
+
+
+  for (const f of files) {
+    const content = (readFile(f)||'').replace(/\r/g,'');
+    const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#') && !l.startsWith('---'));
+    const norm = lines.join('\n').toLowerCase().replace(/[#`*\[\]]/g,'').replace(/\s+/g,' ').trim();
+    if (!norm) continue;
+    let hash = 0;
+    for (let i = 0; i < norm.length; i++) hash = ((hash << 5) - hash + norm.charCodeAt(i)) | 0;
+    hash = hash >>> 0;
+    if (hashes.has(hash)) {
+      const existingRel = hashes.get(hash);
+      const group = dupGroups.find(g => g.files.includes(existingRel));
+      if (group) { group.files.push(relative(f, CONFIG.WIKI_DIR)); }
+      else { dupGroups.push({ files: [existingRel, relative(f, CONFIG.WIKI_DIR)], norm: norm.substring(0,80) }); }
+    } else { hashes.set(hash, relative(f, CONFIG.WIKI_DIR)); }
+  }
+
+
+  if (dupGroups.length === 0) { log('未发现重复文件', 'ok'); return true; }
+
+  log('发现 ' + dupGroups.length + ' 组重复文件:', 'warn');
+  let deleted = 0;
+  for (const g of dupGroups) {
+    // Sort files alphabetically, keep first
+    const sorted = [...g.files].sort();
+    const keep = sorted[0];
+    const toDelete = sorted.slice(1);
+    for (const f of toDelete) {
+      const fullPath = joinDir(CONFIG.WIKI_DIR, f);
+      if (exists(fullPath)) {
+        try { fs.unlinkSync(fullPath); deleted++; log('删除: ' + f, 'warn'); }
+        catch(e) { log('删除失败: ' + f + ' - ' + e.message, 'fail'); }
+      }
+    }
+    log('  保留: ' + keep + '  (删除 ' + toDelete.length + ' 个)', 'info');
+  }
+
+  console.log('\n' + C.w + '查重完成: 删除了 ' + C.y + deleted + C.w + ' 个重复文件' + C.RESET);
+  console.log('建议: 运行 node llm-wiki-sync.js reindex 更新索引');
+  return true;
+}
+
+// ─────────────────────────────────────────
 // OPERATION: stats
 // ─────────────────────────────────────────
 function stats(opts) {
@@ -1000,16 +1129,86 @@ function watchMode(opts) {
 }
 
 // ─────────────────────────────────────────
+// OPERATION: syncWorkspace
+// ─────────────────────────────────────────
+function syncWorkspace(opts) {
+  hr('sync-workspace — OpenClaw ↔ Obsidian Workspace 对齐');
+  const src = CONFIG.ROOT;  // C盘workspace
+  const dest = CONFIG.WORKSPACE_DIR;  // D盘obsidian下的workspace
+  let synced = 0;
+  let mismatched = 0;
+  
+  // 需要同步的目录
+  const dirs = ['brain', 'skills', 'memory', 'learnings', 'archive', 'LLM-wiki-sync'];
+  
+  for (const dir of dirs) {
+    const srcDir = joinDir(src, dir);
+    const destDir = joinDir(dest, dir);
+    
+    if (!exists(srcDir)) {
+      log(dir + '/: 源目录不存在', 'skip');
+      continue;
+    }
+    
+    // 确保目标目录存在
+    mkdir(destDir);
+    
+    // 获取源目录文件
+    const srcFiles = exists(srcDir) ? scanDir(srcDir).filter(f => !f.includes('node_modules')) : [];
+    const destFiles = exists(destDir) ? scanDir(destDir).filter(f => !f.includes('node_modules')) : [];
+    
+    // 比较文件数量
+    const srcCount = srcFiles.length;
+    const destCount = destFiles.length;
+    
+    if (srcCount === destCount) {
+      log(dir + '/: ✅ 对齐 (' + srcCount + ' 文件)', 'ok');
+    } else {
+      log(dir + '/: ⚠️ ' + srcCount + ' vs ' + destCount, 'warn');
+      mismatched++;
+      
+      // 同步缺失的文件
+      const srcSet = new Set(srcFiles.map(f => relative(f, srcDir)));
+      const destSet = new Set(destFiles.map(f => relative(f, destDir)));
+      
+      // 复制源有而目标没有的文件
+      for (const sf of srcFiles) {
+        const rel = relative(sf, srcDir);
+        const df = joinDir(destDir, rel);
+        if (!exists(df)) {
+          const dfDir = df.substring(0, df.lastIndexOf('/'));
+          mkdir(dfDir);
+          try {
+            fs.copyFileSync(sf, df);
+            synced++;
+            log('  + ' + rel, 'info');
+          } catch(e) {}
+        }
+      }
+    }
+  }
+  
+  console.log('\n' + C.w + '同步结果: ' + (mismatched === 0 ? C.G + '✅ 完全对齐' : C.y + '⚠️ ' + mismatched + ' 个目录不同步') + C.RESET);
+  console.log(C.w + '已同步: ' + synced + ' 个文件' + C.RESET);
+  
+  return mismatched === 0;
+}
+
+// ─────────────────────────────────────────
 // OPERATION: all
 // ─────────────────────────────────────────
 function runAll(opts) {
-  hr('all — 全部检查 (compile+lint+sync+index+health)');
+  hr('all — 全部检查');
   let allPassed = true;
   if (!compile(opts))  allPassed = false;
   if (!lint(opts))     allPassed = false;
   if (!sync(opts))     allPassed = false;
+  if (!syncWorkspace(opts)) allPassed = false;
   if (!indexCmd(opts)) allPassed = false;
   if (!health(opts))   allPassed = false;
+  if (!stats(opts))    allPassed = false;
+  if (!dedup(opts))    allPassed = false;
+  if (!backup(opts))   allPassed = false;
   return allPassed;
 }
 
@@ -1053,8 +1252,11 @@ function interactive(opts) {
         case 'backup':  backup(opts);  break;
         case 'export':  exportReport(opts); break;
         case 'all':     runAll(opts);  break;
+        case 'sync-workspace': syncWorkspace(opts); break;
+        case 'fix-lint':  fixLint(opts);   break;
+        case 'fix-dedup': fixDedup(opts); break;
         case 'help':
-          console.log('可用命令: compile lint sync index health dedup stats backup export all quit');
+          console.log('可用命令: compile lint sync index health dedup stats backup export fix-lint fix-dedup all quit');
           break;
         default:
           if (op) log('未知命令: ' + op + ' (输入 help 查看)', 'warn');
@@ -1111,6 +1313,7 @@ function main(argv) {
     case 'compile':  allPassed = compile(opts);    break;
     case 'lint':     allPassed = lint(opts);       break;
     case 'sync':     allPassed = sync(opts);       break;
+    case 'sync-workspace': allPassed = syncWorkspace(opts); break;
     case 'index':    allPassed = indexCmd(opts);   break;
     case 'ingest':   allPassed = ingest(opts);      break;
     case 'query':    allPassed = query(opts);       break;
@@ -1122,9 +1325,11 @@ function main(argv) {
     case 'export':   allPassed = exportReport(opts); break;
     case 'all':      allPassed = runAll(opts);      break;
     case 'watch':    watchMode(opts);               break;
+    case 'fix-lint':  allPassed = fixLint(opts);      break;
+    case 'fix-dedup': allPassed = fixDedup(opts);     break;
     case 'help':
       console.log('用法: node llm-wiki-sync.js <operation> [options]');
-      console.log('操作: compile|lint|sync|index|ingest|query|reindex|health|dedup|stats|backup|export|watch|all');
+      console.log('操作: compile|lint|sync|index|ingest|query|reindex|health|dedup|stats|backup|export|fix-lint|fix-dedup|watch|all');
       console.log('选项: -f html|md|json -i -w -t <sec> -o <path> --backup-dir <path> --dedup-mode strict|loose -v');
       return;
     default:

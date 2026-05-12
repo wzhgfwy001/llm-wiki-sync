@@ -39,7 +39,24 @@
 | **watch** | **文件变更监视** |
 | all | 全部检查 |
 
-## 调用方式
+## 快捷命令
+
+### 伊邪那岐
+
+执行全部检查（compile+lint+sync+index+health+stats+dedup+backup）
+
+```bash
+# 方式1: 批处理
+双击运行 伊邪那岐.bat
+
+# 方式2: 命令行
+node LLM-wiki-sync/llm-wiki-sync.js all
+
+# 方式3: 交互模式
+node LLM-wiki-sync/llm-wiki-sync.js interactive
+```
+
+> **伊邪那岐** - 改变知识库现实之力，守护一切知识
 
 ```
 llm-wiki-sync compile
